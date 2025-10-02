@@ -22,12 +22,17 @@ class NitroGraph:
         self.BASE_API = "https://community.nitrograph.com/api"
         self.AUTH_API = "https://api-web.nitrograph.com/api"
         self.REF_CODE = "XVQ07AO5" # U can change it with yours.
-        self.HEADERS = {}
+        self.BASE_HEADERS = {}
+        self.AUTH_HEADERS = {}
         self.proxies = []
         self.proxy_index = 0
         self.account_proxies = {}
         self.access_tokens = {}
         self.refresh_tokens = {}
+        self.wagmi_cookie = (
+            'wagmi.recentConnectorId="io.metamask"; '
+            'wagmi.store={"state":{"connections":{"__type":"Map","value":[["14ac6838b1f",{"accounts":["0x1d1aFC2d015963017bED1De13e4ed6c3d3ED1618"],"chainId":1,"connector":{"id":"io.metamask","name":"MetaMask","type":"injected","uid":"14ac6838b1f"}}]]},"chainId":1,"current":"14ac6838b1f"},"version":2}'
+        )
         self.session_v1 = {}
         self.session_v4 = {}
 
@@ -207,7 +212,7 @@ class NitroGraph:
             connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
             try:
                 async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.get(url=url, headers=self.HEADERS[address], proxy=proxy, proxy_auth=proxy_auth) as response:
+                    async with session.get(url=url, headers=self.AUTH_HEADERS[address], proxy=proxy, proxy_auth=proxy_auth) as response:
                         response.raise_for_status()
                         return await response.json()
             except (Exception, ClientResponseError) as e:
@@ -227,7 +232,7 @@ class NitroGraph:
         url = f"{self.AUTH_API}/auth/verify"
         data = json.dumps(self.generate_payload(account, address, nonce))
         headers = {
-            **self.HEADERS[address],
+            **self.AUTH_HEADERS[address],
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
@@ -264,7 +269,7 @@ class NitroGraph:
         url = f"{self.BASE_API}/referrals/verify"
         data = json.dumps({"referralCode": self.REF_CODE})
         headers = {
-            **self.HEADERS[address],
+            **self.BASE_HEADERS[address],
             "Content-Length": str(len(data)),
             "Content-Type": "application/json",
             "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
@@ -292,7 +297,7 @@ class NitroGraph:
     async def users_data(self, address: str, proxy_url=None, retries=5):
         url = f"{self.AUTH_API}/users/me"
         headers = {
-            **self.HEADERS[address],
+            **self.AUTH_HEADERS[address],
             "Authorization": f"Bearer {self.access_tokens[address]}",
             "Cookie": f"{self.session_v1[address]}"
         }
@@ -319,7 +324,7 @@ class NitroGraph:
     async def claim_credits(self, address: str, proxy_url=None, retries=5):
         url = f"{self.AUTH_API}/credits/claim"
         headers = {
-            **self.HEADERS[address],
+            **self.AUTH_HEADERS[address],
             "Authorization": f"Bearer {self.access_tokens[address]}",
             "Content-Length": "0",
             "Cookie": f"{self.session_v1[address]}"
@@ -347,7 +352,7 @@ class NitroGraph:
     async def loyalities_rules(self, address: str, loyality_type: str, proxy_url=None, retries=5):
         url = f"{self.BASE_API}/loyalties/rules?type={loyality_type}"
         headers = {
-            **self.HEADERS[address],
+            **self.BASE_HEADERS[address],
             "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
         }
         for attempt in range(retries):
@@ -374,7 +379,7 @@ class NitroGraph:
         url = f"{self.BASE_API}/loyalties/rules"
         data = json.dumps({"ruleIds": [ rules_id ]})
         headers = {
-            **self.HEADERS[address],
+            **self.BASE_HEADERS[address],
             "Content-Length": str(len(data)),
             "Content-Type": "application/json",
             "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
@@ -454,7 +459,7 @@ class NitroGraph:
                 f"{Fore.GREEN + Style.BRIGHT} Login Success {Style.RESET_ALL}"
             )
 
-            await self.verify_referral(address, proxy)
+            # await self.verify_referral(address, proxy)
 
             return True
 
@@ -482,7 +487,7 @@ class NitroGraph:
 
             pool_amount = mining_details.get("claimPoolAmount", 0)
             last_claims = mining_details.get("lastClaimAtTimestampMs", None)
-            next_claims = mining_details.get("lastClaimAtTimestampMs", None)
+            next_claims = mining_details.get("nextClaimAtTimestampMs", None)
 
             if pool_amount > 0:
                 if last_claims is None:
@@ -500,8 +505,9 @@ class NitroGraph:
 
                 else:
                     next_claim_ts = next_claims / 1000
+                    now_time = int(time.time())
 
-                    if next_claims < int(time.time()):
+                    if next_claim_ts < now_time:
                         claim = await self.claim_credits(address, proxy)
                         if claim:
                             reward = claim.get("claimedAmount")
@@ -528,20 +534,20 @@ class NitroGraph:
                     f"{Fore.YELLOW + Style.BRIGHT} No Available Credits to Claim {Style.RESET_ALL}"
                 )
 
-            loyalities = await self.loyalities_rules(address, "DAILY_CLAIM", proxy)
-            if loyalities:
+            # loyalities = await self.loyalities_rules(address, "DAILY_CLAIM", proxy)
+            # if loyalities:
 
-                for loyality in loyalities:
-                    rules_id = loyality.get("id")
+            #     for loyality in loyalities:
+            #         rules_id = loyality.get("id")
 
-                    claim = await self.claim_loyalities(address, rules_id, proxy)
-                    if claim:
-                        message = claim.get("message")
+            #         claim = await self.claim_loyalities(address, rules_id, proxy)
+            #         if claim:
+            #             message = claim.get("message")
 
-                        self.log(
-                            f"{Fore.CYAN + Style.BRIGHT}Check-In:{Style.RESET_ALL}"
-                            f"{Fore.GREEN + Style.BRIGHT} {message} {Style.RESET_ALL}"
-                        )
+            #             self.log(
+            #                 f"{Fore.CYAN + Style.BRIGHT}Check-In:{Style.RESET_ALL}"
+            #                 f"{Fore.GREEN + Style.BRIGHT} {message} {Style.RESET_ALL}"
+            #             )
 
     async def main(self):
         try:
@@ -551,8 +557,6 @@ class NitroGraph:
             proxy_choice, rotate_proxy = self.print_question()
 
             while True:
-                use_proxy = True if proxy_choice == 1 else False
-
                 self.clear_terminal()
                 self.welcome()
                 self.log(
@@ -560,6 +564,7 @@ class NitroGraph:
                     f"{Fore.WHITE + Style.BRIGHT}{len(accounts)}{Style.RESET_ALL}"
                 )
 
+                use_proxy = True if proxy_choice == 1 else False
                 if use_proxy:
                     await self.load_proxies()
 
@@ -580,7 +585,20 @@ class NitroGraph:
                             )
                             continue
 
-                        self.HEADERS[address] = {
+                        user_agent = FakeUserAgent().random
+
+                        self.BASE_HEADERS[address] = {
+                            "Accept": "application/json, text/plain, */*",
+                            "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+                            "Origin": "https://community.nitrograph.com",
+                            "Referer": "https://community.nitrograph.com/app/missions",
+                            "Sec-Fetch-Dest": "empty",
+                            "Sec-Fetch-Mode": "cors",
+                            "Sec-Fetch-Site": "same-origin",
+                            "User-Agent": user_agent
+                        }
+
+                        self.AUTH_HEADERS[address] = {
                             "Accept": "application/json, text/plain, */*",
                             "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
                             "Origin": "https://community.nitrograph.com",
@@ -588,7 +606,7 @@ class NitroGraph:
                             "Sec-Fetch-Dest": "empty",
                             "Sec-Fetch-Mode": "cors",
                             "Sec-Fetch-Site": "same-site",
-                            "User-Agent": FakeUserAgent().random
+                            "User-Agent": user_agent
                         }
                         
                         await self.process_accounts(account, address, use_proxy, rotate_proxy)
