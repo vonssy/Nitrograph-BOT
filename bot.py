@@ -490,7 +490,7 @@ class NitroGraph:
             next_claims = mining_details.get("nextClaimAtTimestampMs", None)
 
             if pool_amount > 0:
-                if last_claims is None:
+                if next_claims is None:
                     claim = await self.claim_credits(address, proxy)
                     if claim:
                         reward = claim.get("claimedAmount")
@@ -510,7 +510,7 @@ class NitroGraph:
                     if next_claim_ts < now_time:
                         claim = await self.claim_credits(address, proxy)
                         if claim:
-                            reward = claim.get("claimedAmount")
+                            reward = claim.get("claimedAmount", 0)
 
                             self.log(
                                 f"{Fore.CYAN + Style.BRIGHT}Mining  :{Style.RESET_ALL}"
