@@ -1,3 +1,4 @@
+from curl_cffi import requests
 from aiohttp import (
     ClientResponseError,
     ClientSession,
@@ -29,10 +30,6 @@ class NitroGraph:
         self.account_proxies = {}
         self.access_tokens = {}
         self.refresh_tokens = {}
-        self.wagmi_cookie = (
-            'wagmi.recentConnectorId="io.metamask"; '
-            'wagmi.store={"state":{"connections":{"__type":"Map","value":[["14ac6838b1f",{"accounts":["0x1d1aFC2d015963017bED1De13e4ed6c3d3ED1618"],"chainId":1,"connector":{"id":"io.metamask","name":"MetaMask","type":"injected","uid":"14ac6838b1f"}}]]},"chainId":1,"current":"14ac6838b1f"},"version":2}'
-        )
         self.session_v1 = {}
         self.session_v4 = {}
 
@@ -275,12 +272,11 @@ class NitroGraph:
             "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
         }
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http":proxy_url, "https":proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.post(url=url, headers=headers, data=data, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
+                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxies=proxies, timeout=60, impersonate="chrome120")
+                response.raise_for_status()
+                return response.json()
             except (Exception, ClientResponseError) as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -356,13 +352,12 @@ class NitroGraph:
             "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
         }
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http":proxy_url, "https":proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.get(url=url, headers=headers, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.get, url=url, headers=headers, proxies=proxies, timeout=60, impersonate="chrome120")
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -385,12 +380,11 @@ class NitroGraph:
             "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
         }
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http":proxy_url, "https":proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.post(url=url, headers=headers, data=data, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
+                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxies=proxies, timeout=60, impersonate="chrome120")
+                response.raise_for_status()
+                return response.json()
             except (Exception, ClientResponseError) as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -459,7 +453,7 @@ class NitroGraph:
                 f"{Fore.GREEN + Style.BRIGHT} Login Success {Style.RESET_ALL}"
             )
 
-            # await self.verify_referral(address, proxy)
+            await self.verify_referral(address, proxy)
 
             return True
 
@@ -534,20 +528,20 @@ class NitroGraph:
                     f"{Fore.YELLOW + Style.BRIGHT} No Available Credits to Claim {Style.RESET_ALL}"
                 )
 
-            # loyalities = await self.loyalities_rules(address, "DAILY_CLAIM", proxy)
-            # if loyalities:
+            loyalities = await self.loyalities_rules(address, "DAILY_CLAIM", proxy)
+            if loyalities:
 
-            #     for loyality in loyalities:
-            #         rules_id = loyality.get("id")
+                for loyality in loyalities:
+                    rules_id = loyality.get("id")
 
-            #         claim = await self.claim_loyalities(address, rules_id, proxy)
-            #         if claim:
-            #             message = claim.get("message")
+                    claim = await self.claim_loyalities(address, rules_id, proxy)
+                    if claim:
+                        message = claim.get("message")
 
-            #             self.log(
-            #                 f"{Fore.CYAN + Style.BRIGHT}Check-In:{Style.RESET_ALL}"
-            #                 f"{Fore.GREEN + Style.BRIGHT} {message} {Style.RESET_ALL}"
-            #             )
+                        self.log(
+                            f"{Fore.CYAN + Style.BRIGHT}Check-In:{Style.RESET_ALL}"
+                            f"{Fore.GREEN + Style.BRIGHT} {message} {Style.RESET_ALL}"
+                        )
 
     async def main(self):
         try:
