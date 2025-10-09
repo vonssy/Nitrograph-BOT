@@ -32,6 +32,7 @@ Nitrograph BOT is an automated tool designed to claim mining and check-in across
 - 🔄 **Automated Account Management** - Retrieve account information automatically
 - 🌐 **Flexible Proxy Support** - Run with or without proxy configuration
 - 🔀 **Smart Proxy Rotation** - Automatic rotation of invalid proxies
+- 🌿 **Mint Agent** - Automated mint nitro agent
 - ⛏️ **$NITRO Mining** - Automated claim $NITRO from miner
 - ⏰ **Daily Check-In** - Automated claim daily check-in
 - 👥 **Multi-Account Support** - Manage multiple accounts simultaneously

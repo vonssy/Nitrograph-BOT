@@ -22,6 +22,7 @@ class NitroGraph:
     def __init__(self) -> None:
         self.BASE_API = "https://community.nitrograph.com/api"
         self.AUTH_API = "https://api-web.nitrograph.com/api"
+        self.EXPLORER = "https://explorer-testnet.nitrograph.foundation/tx/"
         self.REF_CODE = "XVQ07AO5" # U can change it with yours.
         self.BASE_HEADERS = {}
         self.AUTH_HEADERS = {}
@@ -31,7 +32,7 @@ class NitroGraph:
         self.access_tokens = {}
         self.refresh_tokens = {}
         self.session_v1 = {}
-        self.session_v4 = {}
+        self.session_v5 = {}
 
     def clear_terminal(self):
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -269,7 +270,7 @@ class NitroGraph:
             **self.BASE_HEADERS[address],
             "Content-Length": str(len(data)),
             "Content-Type": "application/json",
-            "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
+            "Cookie": f"{self.session_v1[address]}; {self.session_v5[address]}"
         }
         for attempt in range(retries):
             proxies = {"http":proxy_url, "https":proxy_url} if proxy_url else None
@@ -317,6 +318,35 @@ class NitroGraph:
 
         return None
     
+    async def mint_agent(self, address: str, proxy_url=None, retries=5):
+        url = f"{self.AUTH_API}/credits/mint-agent"
+        headers = {
+            **self.AUTH_HEADERS[address],
+            "Authorization": f"Bearer {self.access_tokens[address]}",
+            "Content-Length": "0",
+            "Cookie": f"{self.session_v1[address]}"
+        }
+        for attempt in range(retries):
+            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            try:
+                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
+                    async with session.post(url=url, headers=headers, proxy=proxy, proxy_auth=proxy_auth) as response:
+                        response.raise_for_status()
+                        return await response.json()
+            except (Exception, ClientResponseError) as e:
+                if attempt < retries - 1:
+                    await asyncio.sleep(5)
+                    continue
+                self.log(
+                    f"{Fore.CYAN+Style.BRIGHT}Agent   :{Style.RESET_ALL}"
+                    f"{Fore.RED+Style.BRIGHT} Mint Failed {Style.RESET_ALL}"
+                    f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
+                    f"{Fore.YELLOW+Style.BRIGHT} {str(e)} {Style.RESET_ALL}"
+                )
+
+        return None
+    
+    
     async def claim_credits(self, address: str, proxy_url=None, retries=5):
         url = f"{self.AUTH_API}/credits/claim"
         headers = {
@@ -349,7 +379,7 @@ class NitroGraph:
         url = f"{self.BASE_API}/loyalties/rules?type={loyality_type}"
         headers = {
             **self.BASE_HEADERS[address],
-            "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
+            "Cookie": f"{self.session_v1[address]}; {self.session_v5[address]}"
         }
         for attempt in range(retries):
             proxies = {"http":proxy_url, "https":proxy_url} if proxy_url else None
@@ -362,7 +392,7 @@ class NitroGraph:
                     await asyncio.sleep(5)
                     continue
                 self.log(
-                    f"{Fore.BLUE+Style.BRIGHT}Check-In:{Style.RESET_ALL}"
+                    f"{Fore.CYAN+Style.BRIGHT}Check-In:{Style.RESET_ALL}"
                     f"{Fore.RED+Style.BRIGHT} Fetch Status Failed  {Style.RESET_ALL}"
                     f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
                     f"{Fore.YELLOW+Style.BRIGHT} {str(e)} {Style.RESET_ALL}"
@@ -377,7 +407,7 @@ class NitroGraph:
             **self.BASE_HEADERS[address],
             "Content-Length": str(len(data)),
             "Content-Type": "application/json",
-            "Cookie": f"{self.session_v1[address]}; {self.session_v4[address]}"
+            "Cookie": f"{self.session_v1[address]}; {self.session_v5[address]}"
         }
         for attempt in range(retries):
             proxies = {"http":proxy_url, "https":proxy_url} if proxy_url else None
@@ -390,7 +420,7 @@ class NitroGraph:
                     await asyncio.sleep(5)
                     continue
                 self.log(
-                    f"{Fore.BLUE+Style.BRIGHT}Check-In:{Style.RESET_ALL}"
+                    f"{Fore.CYAN+Style.BRIGHT}Check-In:{Style.RESET_ALL}"
                     f"{Fore.RED+Style.BRIGHT} Failed {Style.RESET_ALL}"
                     f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
                     f"{Fore.YELLOW+Style.BRIGHT} {str(e)} {Style.RESET_ALL}"
@@ -430,7 +460,7 @@ class NitroGraph:
             auth_verify = await self.auth_verify(account, address, nonce, proxy)
             if not auth_verify: return False
 
-            session_v4_payload = {
+            session_v5_payload = {
                 "token": auth_verify["token"],
                 "userId": auth_verify["tokenData"]["userId"],
                 "snagUserId": auth_verify["tokenData"]["snagUserId"],
@@ -441,8 +471,8 @@ class NitroGraph:
                 "refreshToken": auth_verify["refreshToken"]
             }
 
-            self.session_v4[address] = "@nitrograph/session-v4=" + quote(
-                json.dumps(session_v4_payload, separators=(",", ":"))
+            self.session_v5[address] = "@nitrograph/session-v5=" + quote(
+                json.dumps(session_v5_payload, separators=(",", ":"))
             )
 
             self.access_tokens[address] = auth_verify["token"]
@@ -467,6 +497,7 @@ class NitroGraph:
 
             points = user.get("data", {}).get("points", 0)
             credits = user.get("data", {}).get("credits", 0)
+            agent_details = user.get("data", {}).get("agentDetails", None)
             streak_details = user.get("data", {}).get("streakDetails", {})
             mining_details = user.get("data", {}).get("miningDetails", {})
 
@@ -478,6 +509,47 @@ class NitroGraph:
                 f"{Fore.CYAN + Style.BRIGHT}Credits :{Style.RESET_ALL}"
                 f"{Fore.WHITE + Style.BRIGHT} {credits} $NITRO {Style.RESET_ALL}"
             )
+
+            if agent_details is None:
+                mint = await self.mint_agent(address, proxy)
+                if mint:
+                    self.log(f"{Fore.CYAN + Style.BRIGHT}Agent   :{Style.RESET_ALL}")
+
+                    message = mint.get("tokenId")
+                    token_id = mint.get("message")
+                    token_address = mint.get("tokenAccount")
+                    tx_hash = mint.get("transactionHash")
+
+                    self.log(
+                        f"{Fore.BLUE + Style.BRIGHT}   Status  :{Style.RESET_ALL}"
+                        f"{Fore.GREEN + Style.BRIGHT} {message} {Style.RESET_ALL}"
+                    )
+                    self.log(
+                        f"{Fore.BLUE + Style.BRIGHT}   NFT Id  :{Style.RESET_ALL}"
+                        f"{Fore.WHITE + Style.BRIGHT} {token_id} {Style.RESET_ALL}"
+                    )
+                    self.log(
+                        f"{Fore.BLUE + Style.BRIGHT}   Address :{Style.RESET_ALL}"
+                        f"{Fore.WHITE + Style.BRIGHT} {token_address} {Style.RESET_ALL}"
+                    )
+                    self.log(
+                        f"{Fore.BLUE + Style.BRIGHT}   Tx Hash :{Style.RESET_ALL}"
+                        f"{Fore.WHITE + Style.BRIGHT} {tx_hash} {Style.RESET_ALL}"
+                    )
+                    self.log(
+                        f"{Fore.BLUE + Style.BRIGHT}   Explorer:{Style.RESET_ALL}"
+                        f"{Fore.WHITE + Style.BRIGHT} {self.EXPLORER}{tx_hash} {Style.RESET_ALL}"
+                    )
+
+            else:
+                token_id = agent_details.get("tokenId")
+                self.log(
+                    f"{Fore.CYAN + Style.BRIGHT}Agent   :{Style.RESET_ALL}"
+                    f"{Fore.YELLOW + Style.BRIGHT} Already Minted {Style.RESET_ALL}"
+                    f"{Fore.MAGENTA + Style.BRIGHT}-{Style.RESET_ALL}"
+                    f"{Fore.CYAN + Style.BRIGHT} Nft Id: {Style.RESET_ALL}"
+                    f"{Fore.WHITE + Style.BRIGHT} {token_id} {Style.RESET_ALL}"
+                )
 
             pool_amount = mining_details.get("claimPoolAmount", 0)
             last_claims = mining_details.get("lastClaimAtTimestampMs", None)
